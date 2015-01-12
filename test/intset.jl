@@ -12,7 +12,7 @@ setdiff!(s2, IntSet([2, 4, 5, 6]))
 
 s = IntSet([0,1,10,20,200,300,1000,10000,10002])
 @test last(s) == 10002
-@test last(complement(s)) == typemax(Int)
+@test last(complement(s)) == typemax(Int) - 1
 @test first(s) == 0
 @test length(s) == 9
 @test pop!(s) == 10002

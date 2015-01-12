@@ -70,6 +70,13 @@ end
 
 intersect(s1::IntSet) = copy(s1)
 intersect(s1::IntSet, ss...) = intersect(s1, intersect(ss...))
+function intersect(s1::IntSet, ns)
+    s = IntSet()
+    for n in ns
+        n in s1 && push!(s, n)
+    end
+    s
+end
 intersect(s1::IntSet, s2::IntSet) = intersect!(copy(s1), s2)
 function intersect!(s1::IntSet, s2::IntSet)
     l = length(s2.bits)
