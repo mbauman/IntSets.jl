@@ -49,3 +49,25 @@ function findprevnot(B::BitArray, start::Integer)
     end
     return 0
 end
+findlastnot(B::BitArray) = findprevnot(B, length(B))
+
+# returns the index of the first matching element
+function findprev(B::BitArray, v, start::Integer)
+    v ? findprev(B, start) : findprevnot(B, start)
+end
+#findlast(B::BitArray, v) = findprev(B, 1, v)  ## defined in array.jl
+
+# returns the index of the first element for which the function returns true
+function findprev(testf::Function, B::BitArray, start::Integer)
+    f0::Bool = testf(false)
+    f1::Bool = testf(true)
+    !f0 && f1 && return findprev(B, start)
+    f0 && !f1 && return findprevnot(B, start)
+
+    start > 0 || return 0
+    start > length(B) && throw(BoundsError(B, start))
+    length(B) == 0 && return 0
+    f0 && f1 && return start
+    return 0 # last case: !f0 && !f1
+end
+#findlast(testf::Function, B::BitArray) = findprev(testf, B, 1)  ## defined in array.jl
