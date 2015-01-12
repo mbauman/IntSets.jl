@@ -12,6 +12,7 @@ setdiff!(s2, IntSet([2, 4, 5, 6]))
 
 s = IntSet([0,1,10,20,200,300,1000,10000,10002])
 @test last(s) == 10002
+@test last(complement(s)) == typemax(Int)
 @test first(s) == 0
 @test length(s) == 9
 @test pop!(s) == 10002
@@ -129,6 +130,7 @@ c = complement(IntSet())
 @test empty!(c) == IntSet()
 
 ## Intersect
+@test isempty(intersect(IntSet()))
 @test isempty(intersect(IntSet(1:10), IntSet()))
 @test isempty(intersect(IntSet(), IntSet(1:10)))
 @test isempty(intersect(IntSet(), complement(IntSet())))
@@ -136,6 +138,7 @@ c = complement(IntSet())
 @test isempty(intersect(complement(IntSet()), IntSet()))
 @test isempty(intersect(complement(IntSet(1:10)), IntSet()))
 
+@test intersect(IntSet([1,2,3])) == IntSet([1,2,3])
 @test intersect(complement!(IntSet()), IntSet(1)) ==
       intersect(IntSet(1), complement!(IntSet())) == IntSet(1)
 
@@ -146,6 +149,8 @@ c = complement(IntSet())
 
 @test intersect(complement(IntSet(5:12)), complement(IntSet(7:10))) ==
       intersect(complement(IntSet(7:10)), complement(IntSet(5:12))) == complement(IntSet([5:6,11:12]))
+
+@test intersect(IntSet(0:10), IntSet(1:4), 0:5, [1,2,10]) == IntSet(1:2)
 
 ## Setdiff
 s1 = IntSet(1:100)

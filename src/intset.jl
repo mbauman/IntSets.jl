@@ -131,8 +131,7 @@ function next(s::IntSet, i, invert=false)
 end
 done(s::IntSet, i) = i == 0
 
-# Startnot and nextnot iterate through elements *not* in the set
-startnot(s::IntSet) = nextnot(s, 0)[2]
+# Nextnot iterates through elements *not* in the set
 nextnot(s::IntSet, i) = next(s, i, true)
 
 first(a::IntSet) = (s = start(a); done(a, s) ? error("collection is empty") : next(a, s)[1])
