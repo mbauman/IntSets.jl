@@ -37,7 +37,7 @@ function pop!(s::IntSet)
     s.inverse && error("cannot pop the last element of complement IntSet")
     pop!(s, last(s))
 end
-function pop!(s::IntSet, n::Integer) 
+function pop!(s::IntSet, n::Integer)
     n < 0 && throw(BoundsError(s, n))
     n in s ? (_delete!(s, n); n) : throw(KeyError(n))
 end
@@ -60,10 +60,10 @@ union!(s::IntSet, ns) = (for n in ns; push!(s, n); end; s)
 function union!(s1::IntSet, s2::IntSet)
     l = length(s2.bits)
     _ensureroom!(s1, l-1)
-    if     !s1.inverse & !s2.inverse;  s1.bits[1:l] |=  s2.bits
-    elseif  s1.inverse & !s2.inverse;  s1.bits[1:l] &= ~s2.bits
-    elseif !s1.inverse &  s2.inverse;  resize!(s1.bits, l); s1.bits = ~s1.bits & s2.bits; s1.inverse = true
-    else #= s1.inverse &  s2.inverse=# resize!(s1.bits, l); s1.bits &= s2.bits
+    if     !s1.inverse & !s2.inverse;  e = splice!(s1.bits, l+1:length(s1.bits)); map!(|, s1.bits, s1.bits, s2.bits); append!(s1.bits, e)
+    elseif  s1.inverse & !s2.inverse;  e = splice!(s1.bits, l+1:length(s1.bits)); map!(>, s1.bits, s1.bits, s2.bits); append!(s1.bits, e)
+    elseif !s1.inverse &  s2.inverse;  resize!(s1.bits, l); map!(<, s1.bits, s1.bits, s2.bits); s1.inverse = true
+    else #= s1.inverse &  s2.inverse=# resize!(s1.bits, l); map!(&, s1.bits, s1.bits, s2.bits)
     end
     s1
 end
@@ -81,10 +81,10 @@ intersect(s1::IntSet, s2::IntSet) = intersect!(copy(s1), s2)
 function intersect!(s1::IntSet, s2::IntSet)
     l = length(s2.bits)
     _ensureroom!(s1, l-1)
-    if     !s1.inverse & !s2.inverse;  resize!(s1.bits, l); s1.bits &=  s2.bits
-    elseif !s1.inverse &  s2.inverse;  s1.bits[1:l] &= ~s2.bits
-    elseif  s1.inverse & !s2.inverse;  resize!(s1.bits, l); s1.bits = ~s1.bits & s2.bits; s1.inverse = false
-    else #= s1.inverse &  s2.inverse=# s1.bits[1:l] $= s2.bits
+    if     !s1.inverse & !s2.inverse;  resize!(s1.bits, l); map!(&, s1.bits, s1.bits, s2.bits)
+    elseif  s1.inverse & !s2.inverse;  resize!(s1.bits, l); map!(<, s1.bits, s1.bits, s2.bits); s1.inverse = false
+    elseif !s1.inverse &  s2.inverse;  e = splice!(s1.bits, l+1:length(s1.bits)); map!(>, s1.bits, s1.bits, s2.bits); append!(s1.bits, e)
+    else #= s1.inverse &  s2.inverse=# e = splice!(s1.bits, l+1:length(s1.bits)); map!($, s1.bits, s1.bits, s2.bits); append!(s1.bits, e)
     end
     s1
 end
@@ -94,10 +94,10 @@ setdiff!(s::IntSet, ns) = (for n in ns; _delete!(s, n); end; s)
 function setdiff!(s1::IntSet, s2::IntSet)
     l = length(s2.bits)
     _ensureroom!(s1, l-1)
-    if     !s1.inverse & !s2.inverse;  s1.bits[1:l] &= ~s2.bits
-    elseif  s1.inverse & !s2.inverse;  s1.bits[1:l] |=  s2.bits
-    elseif !s1.inverse &  s2.inverse;  resize!(s1.bits, l); s1.bits &= s2.bits
-    else #= s1.inverse &  s2.inverse=# resize!(s1.bits, l); s1.bits = ~s1.bits & s2.bits; s1.inverse = false
+    if     !s1.inverse & !s2.inverse;  e = splice!(s1.bits, l+1:length(s1.bits)); map!(>, s1.bits, s1.bits, s2.bits); append!(s1.bits, e)
+    elseif  s1.inverse & !s2.inverse;  e = splice!(s1.bits, l+1:length(s1.bits)); map!(|, s1.bits, s1.bits, s2.bits); append!(s1.bits, e)
+    elseif !s1.inverse &  s2.inverse;  resize!(s1.bits, l); map!(&, s1.bits, s1.bits, s2.bits)
+    else #= s1.inverse &  s2.inverse=# resize!(s1.bits, l); map!(<, s1.bits, s1.bits, s2.bits); s1.inverse = false
     end
     s1
 end
@@ -113,11 +113,10 @@ end
 function symdiff!(s1::IntSet, s2::IntSet)
     l = length(s2.bits)
     _ensureroom!(s1, l-1)
-    if     !s1.inverse & !s2.inverse;  s1.bits[1:l] $= s2.bits
-    elseif  s1.inverse & !s2.inverse;  s1.bits[1:l] $= s2.bits
-    elseif !s1.inverse &  s2.inverse;  s1.bits[1:l] $= s2.bits; s1.inverse = true
-    else #= s1.inverse &  s2.inverse=# s1.bits[1:l] $= s2.bits; s1.inverse = false
-    end
+    e = splice!(s1.bits, l+1:length(s1.bits))
+    map!($, s1.bits, s1.bits, s2.bits)
+    s2.inverse && (s1.inverse = !s1.inverse)
+    append!(s1.bits, e)
     s1
 end
 
