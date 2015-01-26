@@ -16,20 +16,26 @@ end
 eltype(s::IntSet) = Int
 sizehint!(s::IntSet, sz::Integer) = (sizehint!(s.bits, sz); s)
 
-function _ensureroom!(s::IntSet, n)
+# An internal function for setting the inclusion bit for a given integer n >= 0
+function _setint!(s::IntSet, n::Integer, b::Bool)
+    _ensureroom!(s, n)
+    s.bits[n+1] = b
+    s
+end
+
+# An internal function for ensuring that there is enough space for an integer n
+function _ensureroom!(s::IntSet, n::Integer)
     l = length(s.bits)
     if n+1 > l
         resize!(s.bits, n+1)
-        s.bits[l+1:end] = false
+        s.bits[l+1:end] = false # resize! gives us dirty memory
     end
     s
 end
 
 function push!(s::IntSet, n::Integer)
-    n < 0 && throw(ArgumentError("IntSet elements cannot be negative"))
-    _ensureroom!(s, n)
-    s.bits[n+1] = !s.inverse
-    s
+    n < 0 && throw(ArgumentError("elements of IntSet must not be negative"))
+    _setint!(s, n, !s.inverse)
 end
 push!(s::IntSet, ns::Integer...) = (for n in ns; push!(s, n); end; s)
 
@@ -49,7 +55,7 @@ function pop!(f::Function, s::IntSet, n::Integer)
     n < 0 && throw(BoundsError(s, n))
     n in s ? (_delete!(s, n); n) : f()
 end
-_delete!(s::IntSet, n::Integer) = (_ensureroom!(s, n+1); s.bits[n+1] = s.inverse; s)
+_delete!(s::IntSet, n::Integer) = _setint!(s, n, s.inverse)
 delete!(s::IntSet, n::Integer) = n < 0 ? s : _delete!(s, n)
 shift!(s::IntSet) = pop!(s, first(s))
 
