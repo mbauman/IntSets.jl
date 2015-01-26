@@ -7,6 +7,9 @@ import Base: similar, copy, eltype, sizehint!, push!, union, union!, pop!,
              findprevnot
 export IntSet
 
+import Base: setindex!, unsafe_bitsetindex!, _msk64, get_chunks_id
+
+include("bitarray.jl")
 include("intset.jl")
 
 end # module
