@@ -1,7 +1,7 @@
 type IntSet
     bits::BitVector
     inverse::Bool
-    IntSet() = new(BitVector(0), false)
+    IntSet() = new(fill!(BitVector(256), false), false)
 end
 IntSet(itr) = union!(IntSet(), itr)
 
@@ -17,20 +17,25 @@ eltype(s::IntSet) = Int
 sizehint!(s::IntSet, sz::Integer) = (sizehint!(s.bits, sz); s)
 
 # An internal function for setting the inclusion bit for a given integer n >= 0
-function _setint!(s::IntSet, n::Integer, b::Bool)
-    _ensureroom!(s, n)
-    s.bits[n+1] = b
+@inline function _setint!(s::IntSet, n::Integer, b::Bool)
+    idx = n+1
+    if idx > length(s.bits)
+        !b && return s # setting a bit to zero outside the set's bits is a no-op
+        _ensureroom!(s.bits, idx + idx÷2)
+    end
+    Base.unsafe_setindex!(s.bits, b, idx) # Use @inbounds once available
     s
 end
 
-# An internal function for ensuring that there is enough space for an integer n
-function _ensureroom!(s::IntSet, n::Integer)
-    l = length(s.bits)
-    if n+1 > l
-        resize!(s.bits, n+1)
-        s.bits[l+1:end] = false # resize! gives us dirty memory
+# An internal function to resize a bitarray to at least idx elements, with any
+# added bits initialized to false.
+@inline function _ensureroom!(b::BitArray, idx::Integer)
+    len = length(b)
+    if idx > len
+        resize!(b, idx)
+        Base.unsafe_setindex!(b, false, len+1:idx) # resize! gives dirty memory
     end
-    s
+    b
 end
 
 function push!(s::IntSet, n::Integer)
@@ -65,7 +70,7 @@ union(s::IntSet, ns) = union!(copy(s), ns)
 union!(s::IntSet, ns) = (for n in ns; push!(s, n); end; s)
 function union!(s1::IntSet, s2::IntSet)
     l = length(s2.bits)
-    _ensureroom!(s1, l-1)
+    _ensureroom!(s1.bits, l)
     if     !s1.inverse & !s2.inverse;  e = splice!(s1.bits, l+1:length(s1.bits)); map!(|, s1.bits, s1.bits, s2.bits); append!(s1.bits, e)
     elseif  s1.inverse & !s2.inverse;  e = splice!(s1.bits, l+1:length(s1.bits)); map!(>, s1.bits, s1.bits, s2.bits); append!(s1.bits, e)
     elseif !s1.inverse &  s2.inverse;  resize!(s1.bits, l); map!(<, s1.bits, s1.bits, s2.bits); s1.inverse = true
@@ -86,7 +91,7 @@ end
 intersect(s1::IntSet, s2::IntSet) = intersect!(copy(s1), s2)
 function intersect!(s1::IntSet, s2::IntSet)
     l = length(s2.bits)
-    _ensureroom!(s1, l-1)
+    _ensureroom!(s1.bits, l)
     if     !s1.inverse & !s2.inverse;  resize!(s1.bits, l); map!(&, s1.bits, s1.bits, s2.bits)
     elseif  s1.inverse & !s2.inverse;  resize!(s1.bits, l); map!(<, s1.bits, s1.bits, s2.bits); s1.inverse = false
     elseif !s1.inverse &  s2.inverse;  e = splice!(s1.bits, l+1:length(s1.bits)); map!(>, s1.bits, s1.bits, s2.bits); append!(s1.bits, e)
@@ -99,7 +104,7 @@ setdiff(s::IntSet, ns) = setdiff!(copy(s), ns)
 setdiff!(s::IntSet, ns) = (for n in ns; _delete!(s, n); end; s)
 function setdiff!(s1::IntSet, s2::IntSet)
     l = length(s2.bits)
-    _ensureroom!(s1, l-1)
+    _ensureroom!(s1.bits, l)
     if     !s1.inverse & !s2.inverse;  e = splice!(s1.bits, l+1:length(s1.bits)); map!(>, s1.bits, s1.bits, s2.bits); append!(s1.bits, e)
     elseif  s1.inverse & !s2.inverse;  e = splice!(s1.bits, l+1:length(s1.bits)); map!(|, s1.bits, s1.bits, s2.bits); append!(s1.bits, e)
     elseif !s1.inverse &  s2.inverse;  resize!(s1.bits, l); map!(&, s1.bits, s1.bits, s2.bits)
@@ -112,13 +117,13 @@ symdiff(s::IntSet, ns) = symdiff!(copy(s), ns)
 symdiff!(s::IntSet, ns) = (for n in ns; symdiff!(s, n); end; s)
 function symdiff!(s::IntSet, n::Integer)
     n < 0 && throw(BoundsError(s, n))
-    _ensureroom!(s, n)
+    _ensureroom!(s.bits, n+1)
     s.bits[n+1] $= true
     s
 end
 function symdiff!(s1::IntSet, s2::IntSet)
     l = length(s2.bits)
-    _ensureroom!(s1, l-1)
+    _ensureroom!(s1.bits, l)
     e = splice!(s1.bits, l+1:length(s1.bits))
     map!($, s1.bits, s1.bits, s2.bits)
     s2.inverse && (s1.inverse = !s1.inverse)
