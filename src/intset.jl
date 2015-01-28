@@ -65,6 +65,7 @@ delete!(s::IntSet, n::Integer) = n < 0 ? s : _delete!(s, n)
 shift!(s::IntSet) = pop!(s, first(s))
 
 empty!(s::IntSet) = (fill!(s.bits, false); s.inverse = false; s)
+isempty(s::IntSet) = s.inverse ? length(s.bits) == typemax(Int) && all(s.bits) : !any(s.bits)
 
 union(s::IntSet, ns) = union!(copy(s), ns)
 union!(s::IntSet, ns) = (for n in ns; push!(s, n); end; s)
