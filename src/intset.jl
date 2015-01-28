@@ -21,7 +21,8 @@ sizehint!(s::IntSet, sz::Integer) = (sizehint!(s.bits, sz); s)
     idx = n+1
     if idx > length(s.bits)
         !b && return s # setting a bit to zero outside the set's bits is a no-op
-        _resize0!(s.bits, idx + idx÷2)
+        newlen = idx + idx÷2 # This operation may overflow
+        _resize0!(s.bits, ifelse(newlen<0, typemax(Int), newlen))
     end
     Base.unsafe_setindex!(s.bits, b, idx) # Use @inbounds once available
     s
@@ -32,7 +33,7 @@ end
 @inline function _resize0!(b::BitArray, newlen::Integer)
     len = length(b)
     resize!(b, newlen)
-    Base.unsafe_setindex!(b, false, len+1:newlen) # resize! gives dirty memory
+    len < newlen && Base.unsafe_setindex!(b, false, len+1:newlen) # resize! gives dirty memory
     b
 end
 
@@ -44,8 +45,11 @@ function _matchlength!(b::BitArray, newlen::Integer)
     len < newlen && _resize0!(b, newlen)
     return BitVector(0)
 end
+
+const _intset_bounds_err_msg = string("elements of IntSet must be between 0 and ", typemax(Int)-1)
+
 function push!(s::IntSet, n::Integer)
-    n < 0 && throw(ArgumentError("elements of IntSet must not be negative"))
+    0 <= n < typemax(Int) || throw(ArgumentError(_intset_bounds_err_msg))
     _setint!(s, n, !s.inverse)
 end
 push!(s::IntSet, ns::Integer...) = (for n in ns; push!(s, n); end; s)
@@ -55,15 +59,15 @@ function pop!(s::IntSet)
     pop!(s, last(s))
 end
 function pop!(s::IntSet, n::Integer)
-    n < 0 && throw(BoundsError(s, n))
+    0 <= n < typemax(Int) || throw(ArgumentError(_intset_bounds_err_msg))
     n in s ? (_delete!(s, n); n) : throw(KeyError(n))
 end
 function pop!(s::IntSet, n::Integer, default)
-    n < 0 && throw(BoundsError(s, n))
+    0 <= n < typemax(Int) || throw(ArgumentError(_intset_bounds_err_msg))
     n in s ? (_delete!(s, n); n) : default
 end
 function pop!(f::Function, s::IntSet, n::Integer)
-    n < 0 && throw(BoundsError(s, n))
+    0 <= n < typemax(Int) || throw(ArgumentError(_intset_bounds_err_msg))
     n in s ? (_delete!(s, n); n) : f()
 end
 _delete!(s::IntSet, n::Integer) = _setint!(s, n, s.inverse)
@@ -120,7 +124,7 @@ end
 symdiff(s::IntSet, ns) = symdiff!(copy(s), ns)
 symdiff!(s::IntSet, ns) = (for n in ns; symdiff!(s, n); end; s)
 function symdiff!(s::IntSet, n::Integer)
-    n < 0 && throw(BoundsError(s, n))
+    0 <= n < typemax(Int) || throw(ArgumentError(_intset_bounds_err_msg))
     val = (n in s) $ !s.inverse
     _setint!(s, n, val)
     s
@@ -134,7 +138,8 @@ function symdiff!(s1::IntSet, s2::IntSet)
 end
 
 function in(n::Integer, s::IntSet)
-    (n+1 < 1) | (length(s.bits) < n+1) && return s.inverse
+    0 <= n < typemax(Int) || return false
+    length(s.bits) < n+1 && return s.inverse
     s.bits[n+1] != s.inverse
 end
 
@@ -148,19 +153,32 @@ function next(s::IntSet, i, invert=false)
         (i-1, findnext(s.bits, i+1))
     end
 end
-done(s::IntSet, i) = i == 0
+done(s::IntSet, i) = (i == 0) | (i == typemax(Int))
 
 # Nextnot iterates through elements *not* in the set
+startnot(s::IntSet) = next(s, 0, true)[2]
 nextnot(s::IntSet, i) = next(s, i, true)
+donenot(s::IntSet, i) = i == 0
 
-first(a::IntSet) = (s = start(a); done(a, s) ? error("collection is empty") : next(a, s)[1])
+first(a::IntSet) = (s = start(a); done(a, s) ? error("set is empty") : next(a, s)[1])
 function last(s::IntSet)
     if s.inverse
-        length(s.bits) < typemax(Int) ? typemax(Int)-1 : findprevnot(s.bits, typemax(Int))-1
+        length(s.bits) < typemax(Int) && return typemax(Int)-1
+        n = findprevnot(s.bits, typemax(Int))-1
     else
         n = findprev(s.bits, length(s.bits))-1
-        n == -1 ? error("set is empty") : n
     end
+    n == -1 ? error("set is empty") : n
+end
+firstnot(a::IntSet) = (s = startnot(a); donenot(a, s) ? error("set is empty") : nextnot(a, s)[1])
+function lastnot(s::IntSet)
+    if !s.inverse
+        length(s.bits) < typemax(Int) && return typemax(Int)-1
+        n = findprevnot(s.bits, typemax(Int))-1
+    else
+        n = findprev(s.bits, length(s.bits))-1
+    end
+    n == -1 ? error("set is empty") : n
 end
 
 length(s::IntSet) = (n = sum(s.bits); ifelse(s.inverse, typemax(Int) - n, n))
@@ -177,19 +195,32 @@ function show(io::IO, s::IntSet)
         print(io, n)
         first = false
     end
-    s.inverse && print(io, ", ..., ", typemax(Int))
+    s.inverse && print(io, ", ..., ", typemax(Int)-1)
     print(io, "])")
 end
 
 function ==(s1::IntSet, s2::IntSet)
     l1 = length(s1.bits)
     l2 = length(s2.bits)
+    l1 < l2 && return ==(s2, s1) # Swap so s1 is longer
+
     if s1.inverse == s2.inverse
-        l2 > l1 && ((s1, l1, s2, l2) = (s2, l2, s1, l1)) # Swap so s1 is longer
-        return s1.bits[1:l2] == s2.bits && !any(s1.bits[l2+1:end])
+        # Try to do this without allocating memory
+        if l1 == l2
+            return s1.bits == s2.bits
+        elseif (!s1.inverse && last(s1) != last(s2)) ||
+               (s1.inverse && lastnot(s1) != lastnot(s2))
+            return false
+        else
+            return s1.bits[1:l2] == s2.bits # We know the last bits are the same
+        end
     else
-        # one complement, one not. Could actually be true on 32 bit
-        return l1 == l2 == typemax(Int) && all(s1.bits .!= s2.bits)
+        # one complement, one not. Could feasibly be true on 32 bit machines
+        if l1 < typemax(Int) || last(s1) != last(s2)
+            return false
+        else
+            return map!(!, s1.bits[1:l2]) == s2.bits
+        end
     end
 end
 

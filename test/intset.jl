@@ -93,9 +93,9 @@ s = IntSet(1:2:10)
 @test pop!(s, 1) == 1
 @test !(1 in s)
 @test_throws KeyError pop!(s, 1)
-@test_throws BoundsError pop!(s, -1)
-@test_throws BoundsError pop!(s, -1, 1)
-@test_throws BoundsError pop!(()->error(), s, -1)
+@test_throws ArgumentError pop!(s, -1)
+@test_throws ArgumentError pop!(s, -1, 1)
+@test_throws ArgumentError pop!(()->error(), s, -1)
 @test pop!(s, 1, 0) == 0
 @test s === delete!(s, 1)
 for i in s; pop!(s, i); end
@@ -118,9 +118,9 @@ c = complement(IntSet())
 @test pop!(c, 1) == 1
 @test !(1 in c)
 @test_throws KeyError pop!(c, 1)
-@test_throws BoundsError pop!(c, -1)
-@test_throws BoundsError pop!(c, -1, 1)
-@test_throws BoundsError pop!(()->error(), c, -1)
+@test_throws ArgumentError pop!(c, -1)
+@test_throws ArgumentError pop!(c, -1, 1)
+@test_throws ArgumentError pop!(()->error(), c, -1)
 @test pop!(c, 1, 0) == 0
 @test c === delete!(c, 1)
 @test shift!(c) == 0
