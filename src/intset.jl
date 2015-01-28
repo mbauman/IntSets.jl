@@ -21,23 +21,29 @@ sizehint!(s::IntSet, sz::Integer) = (sizehint!(s.bits, sz); s)
     idx = n+1
     if idx > length(s.bits)
         !b && return s # setting a bit to zero outside the set's bits is a no-op
-        _ensureroom!(s.bits, idx + idx÷2)
+        _resize0!(s.bits, idx + idx÷2)
     end
     Base.unsafe_setindex!(s.bits, b, idx) # Use @inbounds once available
     s
 end
 
-# An internal function to resize a bitarray to at least idx elements, with any
-# added bits initialized to false.
-@inline function _ensureroom!(b::BitArray, idx::Integer)
+# An internal function to resize a bitarray and ensure the newly allocated
+# elements are zeroed (will become unnecessary if this behavior changes)
+@inline function _resize0!(b::BitArray, newlen::Integer)
     len = length(b)
-    if idx > len
-        resize!(b, idx)
-        Base.unsafe_setindex!(b, false, len+1:idx) # resize! gives dirty memory
-    end
+    resize!(b, newlen)
+    Base.unsafe_setindex!(b, false, len+1:newlen) # resize! gives dirty memory
     b
 end
 
+# An internal function that resizes a bitarray so it matches the length newlen
+# Returns a bitvector of the removed elements (empty if none were removed)
+function _matchlength!(b::BitArray, newlen::Integer)
+    len = length(b)
+    len > newlen && return splice!(b, newlen+1:len)
+    len < newlen && _resize0!(b, newlen)
+    return BitVector(0)
+end
 function push!(s::IntSet, n::Integer)
     n < 0 && throw(ArgumentError("elements of IntSet must not be negative"))
     _setint!(s, n, !s.inverse)
@@ -71,11 +77,10 @@ union(s::IntSet, ns) = union!(copy(s), ns)
 union!(s::IntSet, ns) = (for n in ns; push!(s, n); end; s)
 function union!(s1::IntSet, s2::IntSet)
     l = length(s2.bits)
-    _ensureroom!(s1.bits, l)
-    if     !s1.inverse & !s2.inverse;  e = splice!(s1.bits, l+1:length(s1.bits)); map!(|, s1.bits, s1.bits, s2.bits); append!(s1.bits, e)
-    elseif  s1.inverse & !s2.inverse;  e = splice!(s1.bits, l+1:length(s1.bits)); map!(>, s1.bits, s1.bits, s2.bits); append!(s1.bits, e)
-    elseif !s1.inverse &  s2.inverse;  resize!(s1.bits, l); map!(<, s1.bits, s1.bits, s2.bits); s1.inverse = true
-    else #= s1.inverse &  s2.inverse=# resize!(s1.bits, l); map!(&, s1.bits, s1.bits, s2.bits)
+    if     !s1.inverse & !s2.inverse;  e = _matchlength!(s1.bits, l); map!(|, s1.bits, s1.bits, s2.bits); append!(s1.bits, e)
+    elseif  s1.inverse & !s2.inverse;  e = _matchlength!(s1.bits, l); map!(>, s1.bits, s1.bits, s2.bits); append!(s1.bits, e)
+    elseif !s1.inverse &  s2.inverse;  _resize0!(s1.bits, l);         map!(<, s1.bits, s1.bits, s2.bits); s1.inverse = true
+    else #= s1.inverse &  s2.inverse=# _resize0!(s1.bits, l);         map!(&, s1.bits, s1.bits, s2.bits)
     end
     s1
 end
@@ -92,11 +97,10 @@ end
 intersect(s1::IntSet, s2::IntSet) = intersect!(copy(s1), s2)
 function intersect!(s1::IntSet, s2::IntSet)
     l = length(s2.bits)
-    _ensureroom!(s1.bits, l)
-    if     !s1.inverse & !s2.inverse;  resize!(s1.bits, l); map!(&, s1.bits, s1.bits, s2.bits)
-    elseif  s1.inverse & !s2.inverse;  resize!(s1.bits, l); map!(<, s1.bits, s1.bits, s2.bits); s1.inverse = false
-    elseif !s1.inverse &  s2.inverse;  e = splice!(s1.bits, l+1:length(s1.bits)); map!(>, s1.bits, s1.bits, s2.bits); append!(s1.bits, e)
-    else #= s1.inverse &  s2.inverse=# e = splice!(s1.bits, l+1:length(s1.bits)); map!($, s1.bits, s1.bits, s2.bits); append!(s1.bits, e)
+    if     !s1.inverse & !s2.inverse;  _resize0!(s1.bits, l);         map!(&, s1.bits, s1.bits, s2.bits)
+    elseif  s1.inverse & !s2.inverse;  _resize0!(s1.bits, l);         map!(<, s1.bits, s1.bits, s2.bits); s1.inverse = false
+    elseif !s1.inverse &  s2.inverse;  e = _matchlength!(s1.bits, l); map!(>, s1.bits, s1.bits, s2.bits); append!(s1.bits, e)
+    else #= s1.inverse &  s2.inverse=# e = _matchlength!(s1.bits, l); map!($, s1.bits, s1.bits, s2.bits); append!(s1.bits, e)
     end
     s1
 end
@@ -105,11 +109,10 @@ setdiff(s::IntSet, ns) = setdiff!(copy(s), ns)
 setdiff!(s::IntSet, ns) = (for n in ns; _delete!(s, n); end; s)
 function setdiff!(s1::IntSet, s2::IntSet)
     l = length(s2.bits)
-    _ensureroom!(s1.bits, l)
-    if     !s1.inverse & !s2.inverse;  e = splice!(s1.bits, l+1:length(s1.bits)); map!(>, s1.bits, s1.bits, s2.bits); append!(s1.bits, e)
-    elseif  s1.inverse & !s2.inverse;  e = splice!(s1.bits, l+1:length(s1.bits)); map!(|, s1.bits, s1.bits, s2.bits); append!(s1.bits, e)
-    elseif !s1.inverse &  s2.inverse;  resize!(s1.bits, l); map!(&, s1.bits, s1.bits, s2.bits)
-    else #= s1.inverse &  s2.inverse=# resize!(s1.bits, l); map!(<, s1.bits, s1.bits, s2.bits); s1.inverse = false
+    if     !s1.inverse & !s2.inverse;  e = _matchlength!(s1.bits, l); map!(>, s1.bits, s1.bits, s2.bits); append!(s1.bits, e)
+    elseif  s1.inverse & !s2.inverse;  e = _matchlength!(s1.bits, l); map!(|, s1.bits, s1.bits, s2.bits); append!(s1.bits, e)
+    elseif !s1.inverse &  s2.inverse;  _resize0!(s1.bits, l);         map!(&, s1.bits, s1.bits, s2.bits)
+    else #= s1.inverse &  s2.inverse=# _resize0!(s1.bits, l);         map!(<, s1.bits, s1.bits, s2.bits); s1.inverse = false
     end
     s1
 end
@@ -118,14 +121,12 @@ symdiff(s::IntSet, ns) = symdiff!(copy(s), ns)
 symdiff!(s::IntSet, ns) = (for n in ns; symdiff!(s, n); end; s)
 function symdiff!(s::IntSet, n::Integer)
     n < 0 && throw(BoundsError(s, n))
-    _ensureroom!(s.bits, n+1)
-    s.bits[n+1] $= true
+    val = (n in s) $ !s.inverse
+    _setint!(s, n, val)
     s
 end
 function symdiff!(s1::IntSet, s2::IntSet)
-    l = length(s2.bits)
-    _ensureroom!(s1.bits, l)
-    e = splice!(s1.bits, l+1:length(s1.bits))
+    e = _matchlength!(s1.bits, length(s2.bits))
     map!($, s1.bits, s1.bits, s2.bits)
     s2.inverse && (s1.inverse = !s1.inverse)
     append!(s1.bits, e)
