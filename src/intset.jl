@@ -148,7 +148,7 @@ start(s::IntSet) = next(s, 0)[2]
 function next(s::IntSet, i, invert=false)
     if s.inverse $ invert
         n = findnextnot(s.bits, i+1)
-        (i-1, ifelse(n == 0, max(i, length(s.bits))+1, n))
+        (i-1, ifelse(n == 0, max(i+1, length(s.bits)), n))
     else
         (i-1, findnext(s.bits, i+1))
     end
@@ -195,7 +195,7 @@ function show(io::IO, s::IntSet)
         print(io, n)
         first = false
     end
-    s.inverse && print(io, ", ..., ", typemax(Int)-1)
+    s.inverse && length(s) > 3 && last(s) == typemax(Int)-1 && print(io, ", ..., ", typemax(Int)-1)
     print(io, "])")
 end
 
