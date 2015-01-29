@@ -147,7 +147,7 @@ end
 start(s::IntSet) = next(s, 0)[2]
 function next(s::IntSet, i, invert=false)
     if s.inverse $ invert
-        n = findnextnot(s.bits, i+1)
+        n = i == typemax(Int) ? typemin(Int) : findnextnot(s.bits, i+1)
         (i-1, ifelse(n == 0, max(i, length(s.bits))+1, n))
     else
         (i-1, findnext(s.bits, i+1))
