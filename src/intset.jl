@@ -190,12 +190,14 @@ function show(io::IO, s::IntSet)
     print(io, "IntSet([")
     first = true
     for n in s
-        s.inverse && n > 2 && done(s, nextnot(s, n-3)[2]) && break
+        if s.inverse && n > 2 && done(s, nextnot(s, n-3)[2])
+             print(io, ", ..., ", typemax(Int)-1)
+             break
+         end
         !first && print(io, ", ")
         print(io, n)
         first = false
     end
-    s.inverse && length(s) > 3 && last(s) == typemax(Int)-1 && print(io, ", ..., ", typemax(Int)-1)
     print(io, "])")
 end
 
