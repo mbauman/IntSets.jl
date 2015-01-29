@@ -148,12 +148,12 @@ start(s::IntSet) = next(s, 0)[2]
 function next(s::IntSet, i, invert=false)
     if s.inverse $ invert
         n = findnextnot(s.bits, i+1)
-        (i-1, ifelse(n == 0, max(i+1, length(s.bits)), n))
+        (i-1, ifelse(n == 0, max(i, length(s.bits))+1, n))
     else
         (i-1, findnext(s.bits, i+1))
     end
 end
-done(s::IntSet, i) = (i == 0) | (i == typemax(Int))
+done(s::IntSet, i) = (i == 0) | (i == typemin(Int))
 
 # Nextnot iterates through elements *not* in the set
 startnot(s::IntSet) = next(s, 0, true)[2]
