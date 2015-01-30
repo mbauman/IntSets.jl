@@ -104,7 +104,7 @@ function intersect!(s1::IntSet, s2::IntSet)
     if     !s1.inverse & !s2.inverse;  _resize0!(s1.bits, l);         map!(&, s1.bits, s1.bits, s2.bits)
     elseif  s1.inverse & !s2.inverse;  _resize0!(s1.bits, l);         map!(<, s1.bits, s1.bits, s2.bits); s1.inverse = false
     elseif !s1.inverse &  s2.inverse;  e = _matchlength!(s1.bits, l); map!(>, s1.bits, s1.bits, s2.bits); append!(s1.bits, e)
-    else #= s1.inverse &  s2.inverse=# e = _matchlength!(s1.bits, l); map!($, s1.bits, s1.bits, s2.bits); append!(s1.bits, e)
+    else #= s1.inverse &  s2.inverse=# e = _matchlength!(s1.bits, l); map!(|, s1.bits, s1.bits, s2.bits); append!(s1.bits, e)
     end
     s1
 end

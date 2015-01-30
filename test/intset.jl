@@ -148,7 +148,7 @@ c = complement(IntSet())
       intersect(IntSet(0:7), complement(IntSet([0:2,11:16]))) == IntSet(3:7)
 
 @test intersect(complement(IntSet(5:12)), complement(IntSet(7:10))) ==
-      intersect(complement(IntSet(7:10)), complement(IntSet(5:12))) == complement(IntSet([5:6,11:12]))
+      intersect(complement(IntSet(7:10)), complement(IntSet(5:12))) == complement(IntSet([5:12]))
 
 @test intersect(IntSet(0:10), IntSet(1:4), 0:5, [1,2,10]) == IntSet(1:2)
 
@@ -190,6 +190,47 @@ s2 = complement(IntSet(3:5))
 @test IntSet(1) < complement!(IntSet())
 @test IntSet(1) <= complement!(IntSet())
 @test !(IntSet(1) < complement!(IntSet(1)))
+
+# Test logic against Set
+p = IntSet([0,1,4,5])
+resize!(p.bits, 6)
+q = IntSet([0,2,4,6])
+resize!(q.bits, 8)
+p′ = complement(p)
+q′ = complement(q)
+function collect10(itr)
+    r = eltype(itr)[]
+    for i in itr
+        i > 10 && break
+        push!(r, i)
+    end
+    r
+end
+a = Set(p)
+b = Set(q)
+a′ = Set(collect10(p′))
+b′ = Set(collect10(q′))
+for f in (union, intersect, setdiff, symdiff)
+    @test collect(f(p, p)) == sort(collect(f(a, a)))
+    @test collect(f(q, q)) == sort(collect(f(b, b)))
+    @test collect(f(p, q)) == sort(collect(f(a, b)))
+    @test collect(f(q, p)) == sort(collect(f(b, a)))
+
+    @test collect10(f(p′, p)) == sort(collect(f(a′, a)))
+    @test collect10(f(q′, q)) == sort(collect(f(b′, b)))
+    @test collect10(f(p′, q)) == sort(collect(f(a′, b)))
+    @test collect10(f(q′, p)) == sort(collect(f(b′, a)))
+
+    @test collect10(f(p, p′)) == sort(collect(f(a, a′)))
+    @test collect10(f(q, q′)) == sort(collect(f(b, b′)))
+    @test collect10(f(p, q′)) == sort(collect(f(a, b′)))
+    @test collect10(f(q, p′)) == sort(collect(f(b, a′)))
+
+    @test collect10(f(p′, p′)) == sort(collect(f(a′, a′)))
+    @test collect10(f(q′, q′)) == sort(collect(f(b′, b′)))
+    @test collect10(f(p′, q′)) == sort(collect(f(a′, b′)))
+    @test collect10(f(q′, p′)) == sort(collect(f(b′, a′)))
+end
 
 ## Other
 s = IntSet()
