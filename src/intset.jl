@@ -14,7 +14,7 @@ function copy!(to::IntSet, from::IntSet)
     to
 end
 eltype(s::IntSet) = Int
-sizehint!(s::IntSet, sz::Integer) = (sizehint!(s.bits, sz); s)
+sizehint!(s::IntSet, sz::Integer) = (_resize0!(s.bits, sz+1); s)
 
 # An internal function for setting the inclusion bit for a given integer n >= 0
 @inline function _setint!(s::IntSet, n::Integer, b::Bool)
