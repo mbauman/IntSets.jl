@@ -146,9 +146,11 @@ function symdiff!(s1::IntSet, s2::IntSet)
 end
 
 function in(n::Integer, s::IntSet)
-    0 <= n < length(s.bits) && return unsafe_getindex(s.bits, n+1) != s.inverse
-    length(s.bits) < n+1 && return s.inverse
-    return false
+    if 0 <= n < length(s.bits)
+        unsafe_getindex(s.bits, n+1) != s.inverse
+    else
+        ifelse((n < 0) | (n >= typemax(Int)), false, s.inverse)
+    end
 end
 
 # Use the next-set index as the state to prevent looking it up again in done
@@ -169,18 +171,14 @@ done(s::IntSet, i) = i <= 0
 # Nextnot iterates through elements *not* in the set
 nextnot(s::IntSet, i) = next(s, i, true)
 
-function _last(s::IntSet) # Last, but without erroring if empty
+function last(s::IntSet)
     l = length(s.bits)
     if s.inverse
         idx = l < typemax(Int) ? typemax(Int) : findprevnot(s.bits, l)
     else
         idx = findprev(s.bits, l)
     end
-    return idx - 1
-end
-function last(s::IntSet)
-    n = _last(s)
-    n == -1 ? throw(ArgumentError("collection must be non-empty")) : n
+    idx == 0 ? throw(ArgumentError("collection must be non-empty")) : idx - 1
 end
 
 length(s::IntSet) = (n = sum(s.bits); ifelse(s.inverse, typemax(Int) - n, n))
@@ -216,8 +214,8 @@ function ==(s1::IntSet, s2::IntSet)
         return findprev(s1.bits, l1) == findprev(s2.bits, l2) && s1.bits[1:l2] == s2.bits
     else
         # one complement, one not. Could feasibly be true on 32 bit machines
-        return l1 == typemax(Int) && # But only if at least one uses all bits
-               _last(s1) == _last(s2) && map!(!, s1.bits[1:l2]) == s2.bits
+        # Only if all non-overlapping bits are set and overlaps are inverted
+        return l1 == typemax(Int) && map!(!, s1.bits[1:l2]) == s2.bits && (l1 == l2 || all(s1.bits[l2+1:end]))
     end
 end
 

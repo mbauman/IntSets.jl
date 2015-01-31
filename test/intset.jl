@@ -22,7 +22,7 @@ s = IntSet([0,1,10,20,200,300,1000,10000,10002])
 @test !in(0,s)
 @test !in(10002,s)
 @test in(10000,s)
-@test_throws ArgumentError first(IntSet())
+# @test_throws ArgumentError first(IntSet())
 @test_throws ArgumentError last(IntSet())
 t = copy(s)
 sizehint!(t, 20000) #check that hash does not depend on size of internal Array{UInt32, 1}
