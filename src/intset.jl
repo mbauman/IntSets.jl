@@ -24,7 +24,7 @@ sizehint!(s::IntSet, sz::Integer) = (sizehint!(s.bits, sz); s)
         newlen = idx + idx÷2 # This operation may overflow
         _resize0!(s.bits, ifelse(newlen<0, typemax(Int), newlen))
     end
-    Base.unsafe_setindex!(s.bits, b, idx) # Use @inbounds once available
+    unsafe_setindex!(s.bits, b, idx) # Use @inbounds once available
     s
 end
 
@@ -33,7 +33,7 @@ end
 @inline function _resize0!(b::BitArray, newlen::Integer)
     len = length(b)
     resize!(b, newlen)
-    len < newlen && Base.unsafe_setindex!(b, false, len+1:newlen) # resize! gives dirty memory
+    len < newlen && unsafe_setindex!(b, false, len+1:newlen) # resize! gives dirty memory
     b
 end
 
@@ -146,9 +146,9 @@ function symdiff!(s1::IntSet, s2::IntSet)
 end
 
 function in(n::Integer, s::IntSet)
-    0 <= n < typemax(Int) || return false
+    0 <= n < length(s.bits) && return unsafe_getindex(s.bits, n+1) != s.inverse
     length(s.bits) < n+1 && return s.inverse
-    s.bits[n+1] != s.inverse
+    return false
 end
 
 # Use the next-set index as the state to prevent looking it up again in done
