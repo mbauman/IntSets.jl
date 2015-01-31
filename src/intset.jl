@@ -229,6 +229,6 @@ const hashis_seed = UInt === UInt64 ? 0x88989f1fc7dea67d : 0xc7dea67d
 function hash(s::IntSet, h::UInt)
     # Only hash the bits array up to the last-set bit to prevent extra empty
     # bits from changing the hash result
-    l = s.inverse ? findprevnot(s.bits, length(s.bits)) : findprev(s.bits, length(s.bits))
+    l = findprev(s.bits, length(s.bits))
     hash(s.bits[1:l], h) $ hash(s.inverse) $ hashis_seed
 end
