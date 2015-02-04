@@ -14,14 +14,14 @@ function copy!(to::IntSet, from::IntSet)
     to
 end
 eltype(s::IntSet) = Int
-sizehint!(s::IntSet, sz::Integer) = (_resize0!(s.bits, sz+1); s)
+sizehint!(s::IntSet, n::Integer) = (_resize0!(s.bits, n+1); s)
 
 # An internal function for setting the inclusion bit for a given integer n >= 0
 @inline function _setint!(s::IntSet, n::Integer, b::Bool)
     idx = n+1
     if idx > length(s.bits)
         !b && return s # setting a bit to zero outside the set's bits is a no-op
-        newlen = idx + idx÷2 # This operation may overflow
+        newlen = idx + idx>>1 # This operation may overflow; we want saturation
         _resize0!(s.bits, ifelse(newlen<0, typemax(Int), newlen))
     end
     unsafe_setindex!(s.bits, b, idx) # Use @inbounds once available
@@ -30,7 +30,7 @@ end
 
 # An internal function to resize a bitarray and ensure the newly allocated
 # elements are zeroed (will become unnecessary if this behavior changes)
-@inline function _resize0!(b::BitArray, newlen::Integer)
+@inline function _resize0!(b::BitVector, newlen::Integer)
     len = length(b)
     resize!(b, newlen)
     len < newlen && unsafe_setindex!(b, false, len+1:newlen) # resize! gives dirty memory
@@ -46,7 +46,7 @@ function _matchlength!(b::BitArray, newlen::Integer)
     return BitVector(0)
 end
 
-const _intset_bounds_err_msg = string("elements of IntSet must be between 0 and ", typemax(Int)-1)
+const _intset_bounds_err_msg = "elements of IntSet must be between 0 and typemax(Int)-1"
 
 function push!(s::IntSet, n::Integer)
     0 <= n < typemax(Int) || throw(ArgumentError(_intset_bounds_err_msg))
@@ -146,10 +146,11 @@ function symdiff!(s1::IntSet, s2::IntSet)
 end
 
 function in(n::Integer, s::IntSet)
-    if 0 <= n < length(s.bits)
-        unsafe_getindex(s.bits, n+1) != s.inverse
+    idx = n+1
+    if 1 <= idx <= length(s.bits)
+        unsafe_getindex(s.bits, idx) != s.inverse
     else
-        ifelse((n < 0) | (n >= typemax(Int)), false, s.inverse)
+        ifelse((idx <= 0) | (idx > typemax(Int)), false, s.inverse)
     end
 end
 
@@ -211,11 +212,14 @@ function ==(s1::IntSet, s2::IntSet)
         # If the lengths are the same, simply punt to bitarray comparison
         l1 == l2 && return s1.bits == s2.bits
         # Otherwise check the last bit. If equal, we only need to check up to l2
-        return findprev(s1.bits, l1) == findprev(s2.bits, l2) && s1.bits[1:l2] == s2.bits
+        return findprev(s1.bits, l1) == findprev(s2.bits, l2) &&
+               unsafe_getindex(s1.bits, 1:l2) == s2.bits
     else
         # one complement, one not. Could feasibly be true on 32 bit machines
         # Only if all non-overlapping bits are set and overlaps are inverted
-        return l1 == typemax(Int) && map!(!, s1.bits[1:l2]) == s2.bits && (l1 == l2 || all(s1.bits[l2+1:end]))
+        return l1 == typemax(Int) &&
+               map!(!, unsafe_getindex(s1.bits, 1:l2)) == s2.bits &&
+               (l1 == l2 || all(unsafe_getindex(s1.bits, l2+1:l1)))
     end
 end
 
