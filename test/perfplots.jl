@@ -1,5 +1,5 @@
-# Julia 0.3
-using HDF5, JLD, DataFrames, Gadfly
+# Julia 0.5
+using HDF5, JLD, DataFrames, Gadfly, Colors
 
 for (fname, param) in (("perf_density", :density),
                        ("perf_size", :size))
@@ -13,7 +13,7 @@ for (fname, param) in (("perf_density", :density),
         p = plot(d, x=param, y=:median, ymin=:min, ymax=:p95, color=:module, 
                     Geom.line, Geom.ribbon, Scale.x_log10, Scale.y_log10, 
                     Guide.Title(string(d[:test][1])), Guide.YLabel("time (s)"),
-                    Theme(background_color=Color.color("white")))
+                    Theme(background_color=colorant"white"))
         draw(PNG(joinpath(fname, string(d[:test][1], ".png")), 4inch, 3inch), p)
     end
     # Relative plots
@@ -27,7 +27,7 @@ for (fname, param) in (("perf_density", :density),
     for d in groupby(rdf, :test)
         p = plot(d, x=param, y=:min, Geom.line, Scale.x_log10,
                     Guide.Title(string(d[:test][1])), Guide.YLabel("min relative to base"),
-                    Theme(background_color=Color.color("white")))
+                    Theme(background_color=colorant"white"))
         draw(PNG(joinpath(fname, string(d[:test][1], "_rel.png")), 4inch, 3inch), p)
     end
 end

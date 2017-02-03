@@ -1,7 +1,6 @@
-type IntSet
+immutable IntSet
     bits::BitVector
-    inverse::Bool
-    IntSet() = new(fill!(BitVector(256), false), false)
+    IntSet() = new(fill!(BitVector(256), false))
 end
 IntSet(itr) = union!(IntSet(), itr)
 
@@ -10,7 +9,6 @@ copy(s1::IntSet) = copy!(IntSet(), s1)
 function copy!(to::IntSet, from::IntSet)
     resize!(to.bits, length(from.bits))
     copy!(to.bits, from.bits)
-    to.inverse = from.inverse
     to
 end
 eltype(s::IntSet) = Int
@@ -37,63 +35,64 @@ end
     b
 end
 
-# An internal function that resizes a bitarray so it matches the length newlen
-# Returns a bitvector of the removed elements (empty if none were removed)
-function _matchlength!(b::BitArray, newlen::Integer)
-    len = length(b)
-    len > newlen && return splice!(b, newlen+1:len)
-    len < newlen && _resize0!(b, newlen)
-    return BitVector(0)
+# An internal function that takes a pure function `f` and maps across two BitArrays
+# allowing the lengths to be different and altering b1 with the result
+function _matched_map!{F}(f::F, b1::BitArray, b2::BitArray)
+    l1, l2 = length(b1), length(b2)
+    if l1 == l2
+        map!(f, b1, b1, b2)
+    elseif l1 < l2
+        _resize0!(b1, l2)
+        map!(f, b1, b1, b2)
+    elseif l1 > l2
+        if f(false, false) == f(true, false) == false
+            # We don't need to worry about the trailing bits — they're all false
+            resize!(b1, l2)
+            map!(f, b1, b1, b2)
+        else
+            # We transiently extend b2 — as IntSet internal storage this is unobservable
+            _resize0!(b2, l1)
+            map!(f, b1, b1, b2)
+            resize!(b2, l2)
+        end
+    end
+    b1
 end
 
-const _intset_bounds_err_msg = "elements of IntSet must be between 0 and typemax(Int)-1"
+@noinline _throw_intset_bounds_err() = throw(ArgumentError("elements of IntSet must be between 0 and typemax(Int)-1"))
+@noinline _throw_keyerror(n) = throw(KeyError(n))
 
-function push!(s::IntSet, n::Integer)
-    0 <= n < typemax(Int) || throw(ArgumentError(_intset_bounds_err_msg))
-    _setint!(s, n, !s.inverse)
+@inline function push!(s::IntSet, n::Integer)
+    0 <= n < typemax(Int) || _throw_intset_bounds_err()
+    _setint!(s, n, true)
 end
 push!(s::IntSet, ns::Integer...) = (for n in ns; push!(s, n); end; s)
 
-function pop!(s::IntSet)
-    s.inverse && error("cannot pop the last element of complement IntSet")
+@inline function pop!(s::IntSet)
     pop!(s, last(s))
 end
-function pop!(s::IntSet, n::Integer)
-    0 <= n < typemax(Int) || throw(ArgumentError(_intset_bounds_err_msg))
-    n in s ? (_delete!(s, n); n) : throw(KeyError(n))
+@inline function pop!(s::IntSet, n::Integer)
+    n in s ? (_delete!(s, n); n) : _throw_keyerror(n)
 end
-function pop!(s::IntSet, n::Integer, default)
-    0 <= n < typemax(Int) || throw(ArgumentError(_intset_bounds_err_msg))
+@inline function pop!(s::IntSet, n::Integer, default)
     n in s ? (_delete!(s, n); n) : default
 end
 function pop!(f::Function, s::IntSet, n::Integer)
-    0 <= n < typemax(Int) || throw(ArgumentError(_intset_bounds_err_msg))
     n in s ? (_delete!(s, n); n) : f()
 end
-_delete!(s::IntSet, n::Integer) = _setint!(s, n, s.inverse)
-delete!(s::IntSet, n::Integer) = n < 0 ? s : _delete!(s, n)
+@inline _delete!(s::IntSet, n::Integer) = _setint!(s, n, false)
+@inline delete!(s::IntSet, n::Integer) = n < 0 ? s : _delete!(s, n)
 shift!(s::IntSet) = pop!(s, first(s))
 
-empty!(s::IntSet) = (fill!(s.bits, false); s.inverse = false; s)
-isempty(s::IntSet) = s.inverse ? length(s.bits) == typemax(Int) && all(s.bits) : !any(s.bits)
+empty!(s::IntSet) = (fill!(s.bits, false); s)
+isempty(s::IntSet) = !any(s.bits)
 
 # Mathematical set functions: union!, intersect!, setdiff!, symdiff!
-# When applied to two intsets, these all have a similar form:
-# - Reshape s1 to match s2, occasionally grabbing the bits that were removed
-# - Use map to apply some bitwise operation across the entire bitvector
-#   - These operations use functors to work on the bitvector chunks, so are
-#     very efficient... but a little untraditional. E.g., (p > q) => (p & ~q)
-# - If needed, append the removed bits back to s1 or invert the array
 
 union(s::IntSet, ns) = union!(copy(s), ns)
 union!(s::IntSet, ns) = (for n in ns; push!(s, n); end; s)
 function union!(s1::IntSet, s2::IntSet)
-    l = length(s2.bits)
-    if     !s1.inverse & !s2.inverse;  e = _matchlength!(s1.bits, l); map!(|, s1.bits, s1.bits, s2.bits); append!(s1.bits, e)
-    elseif  s1.inverse & !s2.inverse;  e = _matchlength!(s1.bits, l); map!(>, s1.bits, s1.bits, s2.bits); append!(s1.bits, e)
-    elseif !s1.inverse &  s2.inverse;  _resize0!(s1.bits, l);         map!(<, s1.bits, s1.bits, s2.bits); s1.inverse = true
-    else #= s1.inverse &  s2.inverse=# _resize0!(s1.bits, l);         map!(&, s1.bits, s1.bits, s2.bits)
-    end
+    _matched_map!(|, s1.bits, s2.bits)
     s1
 end
 
@@ -106,95 +105,64 @@ function intersect(s1::IntSet, ns)
     end
     s
 end
-intersect(s1::IntSet, s2::IntSet) = intersect!(copy(s1), s2)
+intersect(s1::IntSet, s2::IntSet) =
+    (length(s1.bits) >= length(s2.bits) ? intersect!(copy(s1), s2) : intersect!(copy(s2), s1))
 function intersect!(s1::IntSet, s2::IntSet)
-    l = length(s2.bits)
-    if     !s1.inverse & !s2.inverse;  _resize0!(s1.bits, l);         map!(&, s1.bits, s1.bits, s2.bits)
-    elseif  s1.inverse & !s2.inverse;  _resize0!(s1.bits, l);         map!(<, s1.bits, s1.bits, s2.bits); s1.inverse = false
-    elseif !s1.inverse &  s2.inverse;  e = _matchlength!(s1.bits, l); map!(>, s1.bits, s1.bits, s2.bits); append!(s1.bits, e)
-    else #= s1.inverse &  s2.inverse=# e = _matchlength!(s1.bits, l); map!(|, s1.bits, s1.bits, s2.bits); append!(s1.bits, e)
-    end
+    _matched_map!(&, s1.bits, s2.bits)
     s1
 end
 
 setdiff(s::IntSet, ns) = setdiff!(copy(s), ns)
 setdiff!(s::IntSet, ns) = (for n in ns; _delete!(s, n); end; s)
 function setdiff!(s1::IntSet, s2::IntSet)
-    l = length(s2.bits)
-    if     !s1.inverse & !s2.inverse;  e = _matchlength!(s1.bits, l); map!(>, s1.bits, s1.bits, s2.bits); append!(s1.bits, e)
-    elseif  s1.inverse & !s2.inverse;  e = _matchlength!(s1.bits, l); map!(|, s1.bits, s1.bits, s2.bits); append!(s1.bits, e)
-    elseif !s1.inverse &  s2.inverse;  _resize0!(s1.bits, l);         map!(&, s1.bits, s1.bits, s2.bits)
-    else #= s1.inverse &  s2.inverse=# _resize0!(s1.bits, l);         map!(<, s1.bits, s1.bits, s2.bits); s1.inverse = false
-    end
+    _matched_map!(>, s1.bits, s2.bits)
     s1
 end
 
 symdiff(s::IntSet, ns) = symdiff!(copy(s), ns)
 symdiff!(s::IntSet, ns) = (for n in ns; symdiff!(s, n); end; s)
 function symdiff!(s::IntSet, n::Integer)
-    0 <= n < typemax(Int) || throw(ArgumentError(_intset_bounds_err_msg))
-    val = (n in s) $ !s.inverse
+    0 <= n < typemax(Int) || _throw_intset_bounds_err()
+    val = !(n in s)
     _setint!(s, n, val)
     s
 end
 function symdiff!(s1::IntSet, s2::IntSet)
-    e = _matchlength!(s1.bits, length(s2.bits))
-    map!($, s1.bits, s1.bits, s2.bits)
-    s2.inverse && (s1.inverse = !s1.inverse)
-    append!(s1.bits, e)
+    _matched_map!(xor, s1.bits, s2.bits)
     s1
 end
 
-function in(n::Integer, s::IntSet)
+@inline function in(n::Integer, s::IntSet)
     idx = n+1
     if 1 <= idx <= length(s.bits)
-        unsafe_getindex(s.bits, idx) != s.inverse
+        unsafe_getindex(s.bits, idx)
     else
-        ifelse((idx <= 0) | (idx > typemax(Int)), false, s.inverse)
+        false
     end
 end
 
 # Use the next-set index as the state to prevent looking it up again in done
 start(s::IntSet) = next(s, 0)[2]
-function next(s::IntSet, i, invert=false)
-    if s.inverse $ invert
-        # i+1 could rollover causing a BoundsError in findnext/findnextnot
-        nextidx = i == typemax(Int) ? 0 : findnextnot(s.bits, i+1)
-        # Extend indices beyond the length of the bits since it is inverted
-        nextidx = nextidx == 0 ? max(i, length(s.bits))+1 : nextidx
-    else
-        nextidx = i == typemax(Int) ? 0 : findnext(s.bits, i+1)
-    end
+function next(s::IntSet, i)
+    nextidx = i == typemax(Int) ? 0 : findnext(s.bits, i+1)
     (i-1, nextidx)
 end
 done(s::IntSet, i) = i <= 0
 
-# Nextnot iterates through elements *not* in the set
-nextnot(s::IntSet, i) = next(s, i, true)
 
+@noinline _throw_intset_notempty_error() = throw(ArgumentError("collection must be non-empty"))
 function last(s::IntSet)
     l = length(s.bits)
-    if s.inverse
-        idx = l < typemax(Int) ? typemax(Int) : findprevnot(s.bits, l)
-    else
-        idx = findprev(s.bits, l)
-    end
-    idx == 0 ? throw(ArgumentError("collection must be non-empty")) : idx - 1
+    idx = findprev(s.bits, l)
+    idx == 0 ? _throw_intset_notempty_error() : idx - 1
 end
 
-length(s::IntSet) = (n = sum(s.bits); ifelse(s.inverse, typemax(Int) - n, n))
-
-complement(s::IntSet) = complement!(copy(s))
-complement!(s::IntSet) = (s.inverse = !s.inverse; s)
+length(s::IntSet) = sum(s.bits)
 
 function show(io::IO, s::IntSet)
     print(io, "IntSet([")
     first = true
     for n in s
-        if s.inverse && n > 2 && done(s, nextnot(s, n-3)[2])
-             print(io, ", ..., ", typemax(Int)-1)
-             break
-         end
         !first && print(io, ", ")
         print(io, n)
         first = false
@@ -205,22 +173,26 @@ end
 function ==(s1::IntSet, s2::IntSet)
     l1 = length(s1.bits)
     l2 = length(s2.bits)
-    l1 < l2 && return ==(s2, s1) # Swap so s1 is always equal-length or longer
+    # Do this without allocating memory or checking bit-by-bit
+    # If the lengths are the same, simply punt to bitarray comparison
+    l1 == l2 && return s1.bits == s2.bits
 
-    # Try to do this without allocating memory or checking bit-by-bit
-    if s1.inverse == s2.inverse
-        # If the lengths are the same, simply punt to bitarray comparison
-        l1 == l2 && return s1.bits == s2.bits
-        # Otherwise check the last bit. If equal, we only need to check up to l2
-        return findprev(s1.bits, l1) == findprev(s2.bits, l2) &&
-               unsafe_getindex(s1.bits, 1:l2) == s2.bits
-    else
-        # one complement, one not. Could feasibly be true on 32 bit machines
-        # Only if all non-overlapping bits are set and overlaps are inverted
-        return l1 == typemax(Int) &&
-               map!(!, unsafe_getindex(s1.bits, 1:l2)) == s2.bits &&
-               (l1 == l2 || all(unsafe_getindex(s1.bits, l2+1:l1)))
+    # Swap so s1 is always longer
+    if l1 < l2
+        s2, s1 = s1, s2
+        l2, l1 = l1, l2
     end
+    # Iteratively check the chunks of the bitarrays
+    c1 = s1.bits.chunks
+    c2 = s2.bits.chunks
+    @inbounds for i in 1:length(c2)
+        c1[i] == c2[i] || return false
+    end
+    # Ensure remaining chunks are zero
+    @inbounds for i in length(c2)+1:length(c1)
+        c1[i] == UInt64(0) || return false
+    end
+    return true
 end
 
 issubset(a::IntSet, b::IntSet) = isequal(a, intersect(a,b))
@@ -232,5 +204,5 @@ function hash(s::IntSet, h::UInt)
     # Only hash the bits array up to the last-set bit to prevent extra empty
     # bits from changing the hash result
     l = findprev(s.bits, length(s.bits))
-    hash(s.bits[1:l], h) $ hash(s.inverse) $ hashis_seed
+    hash(s.bits[1:l], h) ⊻ hashis_seed
 end

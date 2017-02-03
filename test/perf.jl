@@ -4,7 +4,7 @@ using DataFrames, HDF5, JLD
 
 const REPS = 10000
 
-function test_density(T, N)
+function test_density{T}(::Type{T}, N)
     sz = 10000
     
     times = Float64[]
@@ -15,12 +15,12 @@ function test_density(T, N)
     sizehint!(test, N*10*11)
     for density=logspace(-3,0,7)
         println("Density: $density")
-        elts = unique(round(Int, 0:1/density:sz))
+        elts = unique(round.(Int, 1:1/density:sz))
         set = sizehint!(T(),sz)
         scratch1 = sizehint!(T(), sz)
         scratch2 = sizehint!(T(), sz)
         empty = sizehint!(T(), sz)
-        full = T(0:sz)
+        full = T(1:sz)
         for _=1:N
             # push!
             push!(times, @elapsed for e in elts push!(set, e); end)
@@ -38,7 +38,7 @@ function test_density(T, N)
             push!(test, :sum)
 
             # Containment
-            push!(times, @elapsed for e=0:sz e in set end)
+            push!(times, @elapsed for e=1:sz e in set end)
             push!(param, density)
             push!(test, :in)
         
@@ -93,26 +93,26 @@ function test_density(T, N)
     (times,param,test)
 end
 
-function test_size(T, N)
+function test_size{T}(::Type{T}, N)
     times = Float64[]
     param = Float64[]
     test = Symbol[]
     sizehint!(times, N*10*11)
     sizehint!(param, N*10*11)
     sizehint!(test, N*10*11)
-    for sz=round(Int,logspace(1,5,9))
+    for sz=round.(Int,logspace(1,5,9))
         println("Size: $sz")
-        elts = 0:sz
+        elts = 1:sz
         set = sizehint!(T(),sz)
         scratch1 = sizehint!(T(), sz)
         scratch2 = sizehint!(T(), sz)
         empty = sizehint!(T(), sz)
-        full = T(0:sz)
+        full = T(elts)
         for _=1:N
             # Isempty
             push!(times, @elapsed isempty(set))
             push!(param, sz)
-            push!(test, symbol("isempty (empty)"))
+            push!(test, Symbol("isempty (empty)"))
 
             # push!
             push!(times, @elapsed for e in elts push!(set, e); end)
@@ -122,7 +122,7 @@ function test_size(T, N)
             # Isempty
             push!(times, @elapsed isempty(set))
             push!(param, sz)
-            push!(test, symbol("isempty (full)"))
+            push!(test, Symbol("isempty (full)"))
         
             # Iteration (sum)
             push!(times, @elapsed sum(set))
@@ -130,7 +130,7 @@ function test_size(T, N)
             push!(test, :sum)
 
             # Containment
-            push!(times, @elapsed for e=0:sz e in set end)
+            push!(times, @elapsed for e=1:sz e in set end)
             push!(param, sz)
             push!(test, :in)
         
@@ -193,15 +193,15 @@ test_size(IntSets.IntSet, 1)
 
 ##
 (time, param, fn) = test_density(Base.IntSet, REPS)
-base = DataFrame(Any[time, param, fn, fill!(Array(Symbol, size(time)), :Base)], [:time, :density, :test, :module])
+base = DataFrame(Any[time, param, fn, fill!(Array{Symbol}(size(time)), :Base)], [:time, :density, :test, :module])
 (time, param, fn) = test_density(IntSets.IntSet, REPS)
-test = DataFrame(Any[time, param, fn, fill!(Array(Symbol, size(time)), :IntSets)], [:time, :density, :test, :module])
+test = DataFrame(Any[time, param, fn, fill!(Array{Symbol}(size(time)), :IntSets)], [:time, :density, :test, :module])
 df = append!(base, test)
 save("perf_density.jld", "df", df)
 
 (time, param, fn) = test_size(Base.IntSet, REPS)
-base = DataFrame(Any[time, param, fn, fill!(Array(Symbol, size(time)), :Base)], [:time, :size, :test, :module])
+base = DataFrame(Any[time, param, fn, fill!(Array{Symbol}(size(time)), :Base)], [:time, :size, :test, :module])
 (time, param, fn) = test_size(IntSets.IntSet, REPS÷10)
-test = DataFrame(Any[time, param, fn, fill!(Array(Symbol, size(time)), :IntSets)], [:time, :size, :test, :module])
+test = DataFrame(Any[time, param, fn, fill!(Array{Symbol}(size(time)), :IntSets)], [:time, :size, :test, :module])
 df = append!(base, test)
 save("perf_size.jld", "df", df)
