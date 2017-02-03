@@ -12,11 +12,10 @@ function copy!(to::IntSet, from::IntSet)
     to
 end
 eltype(s::IntSet) = Int
-sizehint!(s::IntSet, n::Integer) = (_resize0!(s.bits, n+1); s)
+sizehint!(s::IntSet, n::Integer) = (_resize0!(s.bits, n); s)
 
 # An internal function for setting the inclusion bit for a given integer n >= 0
-@inline function _setint!(s::IntSet, n::Integer, b::Bool)
-    idx = n+1
+@inline function _setint!(s::IntSet, idx::Integer, b::Bool)
     if idx > length(s.bits)
         !b && return s # setting a bit to zero outside the set's bits is a no-op
         newlen = idx + idx>>1 # This operation may overflow; we want saturation
@@ -59,11 +58,11 @@ function _matched_map!{F}(f::F, b1::BitArray, b2::BitArray)
     b1
 end
 
-@noinline _throw_intset_bounds_err() = throw(ArgumentError("elements of IntSet must be between 0 and typemax(Int)-1"))
+@noinline _throw_intset_bounds_err() = throw(ArgumentError("elements of IntSet must be between 1 and typemax(Int)"))
 @noinline _throw_keyerror(n) = throw(KeyError(n))
 
 @inline function push!(s::IntSet, n::Integer)
-    0 <= n < typemax(Int) || _throw_intset_bounds_err()
+    0 < n <= typemax(Int) || _throw_intset_bounds_err()
     _setint!(s, n, true)
 end
 push!(s::IntSet, ns::Integer...) = (for n in ns; push!(s, n); end; s)
@@ -133,9 +132,8 @@ function symdiff!(s1::IntSet, s2::IntSet)
 end
 
 @inline function in(n::Integer, s::IntSet)
-    idx = n+1
-    if 1 <= idx <= length(s.bits)
-        unsafe_getindex(s.bits, idx)
+    if 1 <= n <= length(s.bits)
+        unsafe_getindex(s.bits, n)
     else
         false
     end
@@ -145,7 +143,7 @@ end
 start(s::IntSet) = next(s, 0)[2]
 function next(s::IntSet, i)
     nextidx = i == typemax(Int) ? 0 : findnext(s.bits, i+1)
-    (i-1, nextidx)
+    (i, nextidx)
 end
 done(s::IntSet, i) = i <= 0
 
@@ -154,7 +152,7 @@ done(s::IntSet, i) = i <= 0
 function last(s::IntSet)
     l = length(s.bits)
     idx = findprev(s.bits, l)
-    idx == 0 ? _throw_intset_notempty_error() : idx - 1
+    idx == 0 ? _throw_intset_notempty_error() : idx
 end
 
 length(s::IntSet) = sum(s.bits)
@@ -173,7 +171,6 @@ end
 function ==(s1::IntSet, s2::IntSet)
     l1 = length(s1.bits)
     l2 = length(s2.bits)
-    # Do this without allocating memory or checking bit-by-bit
     # If the lengths are the same, simply punt to bitarray comparison
     l1 == l2 && return s1.bits == s2.bits
 

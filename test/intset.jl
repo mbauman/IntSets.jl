@@ -10,17 +10,19 @@ setdiff!(s2, IntSet([2, 4, 5, 6]))
 
 # issue #7851
 @test_throws ArgumentError IntSet(-1)
-@test !(-1 in IntSet(0:10))
+@test !(-1 in IntSet(1:10))
 
-s = IntSet([0,1,10,20,200,300,1000,10000,10002])
+s = IntSet([1,2,10,20,200,300,1000,10000,10002])
 @test last(s) == 10002
-@test first(s) == 0
+@test first(s) == 1
 @test length(s) == 9
 @test pop!(s) == 10002
 @test length(s) == 8
-@test shift!(s) == 0
+@test shift!(s) == 1
 @test length(s) == 7
 @test !in(0,s)
+@test !in(1,s)
+@test in(2,s)
 @test !in(10002,s)
 @test in(10000,s)
 # @test_throws ArgumentError first(IntSet())
@@ -91,10 +93,10 @@ empty!(s)
 
 @test intersect(IntSet([1,2,3])) == IntSet([1,2,3])
 
-@test intersect(IntSet(0:7), IntSet(3:10)) ==
-      intersect(IntSet(3:10), IntSet(0:7)) == IntSet(3:7)
+@test intersect(IntSet(1:7), IntSet(3:10)) ==
+      intersect(IntSet(3:10), IntSet(1:7)) == IntSet(3:7)
 
-@test intersect(IntSet(0:10), IntSet(1:4), 0:5, [1,2,10]) == IntSet(1:2)
+@test intersect(IntSet(1:10), IntSet(1:4), 1:5, [2,3,10]) == IntSet(2:3)
 
 ## Setdiff
 s1 = IntSet(1:100)
@@ -116,18 +118,10 @@ s2 = setdiff(IntSet(1:100), IntSet(1:2:100))
 @test IntSet(2:2:10) <= IntSet(2:2:10)
 
 # Test logic against Set
-p = IntSet([0,1,4,5])
+p = IntSet([1,2,5,6])
 resize!(p.bits, 6)
-q = IntSet([0,2,4,6])
+q = IntSet([1,3,5,7])
 resize!(q.bits, 8)
-function collect10(itr)
-    r = eltype(itr)[]
-    for i in itr
-        i > 10 && break
-        push!(r, i)
-    end
-    r
-end
 a = Set(p)
 b = Set(q)
 for f in (union, intersect, setdiff, symdiff)
@@ -139,29 +133,31 @@ end
 
 ## Other
 s = IntSet()
-push!(s, 0, 2, 100)
-@test 0 in s
-@test !(1 in s)
+push!(s, 1, 2, 100)
+@test !(0 in s)
+@test 1 in s
 @test 2 in s
+@test !(3 in s)
 @test 100 in s
 @test !(101 in s)
 @test !(1000 in s)
-@test first(s) == 0
+@test first(s) == 1
 @test last(s) == 100
-@test s == IntSet([0, 2, 100])
+@test s == IntSet([1, 2, 100])
 push!(s, 1000)
-@test [i for i in s] == [0, 2, 100, 1000]
+@test [i for i in s] == [1, 2, 100, 1000]
 @test pop!(s) == 1000
-@test s == IntSet([0, 2, 100])
-@test hash(s) == hash(IntSet([0, 2, 100]))
+@test s == IntSet([1, 2, 100])
+@test hash(s) == hash(IntSet([1, 2, 100]))
 
-b = 0:1000
+b = 1:1000
 s = IntSet(b)
 @test collect(s) == collect(b)
 @test length(s) == length(b)
 @test pop!(s, 100) == 100
-@test collect(s) == [0:99; 101:1000]
+@test collect(s) == [1:99; 101:1000]
 @test_throws KeyError pop!(s, 100)
+@test_throws KeyError pop!(s, 0)
 @test pop!(s, 100, 0) == 0
 @test pop!(s, 99, 0) == 99
 @test pop!(()->1, s, 99) == 1
