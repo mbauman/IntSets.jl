@@ -1,9 +1,12 @@
+# This file is a part of Julia. License is MIT: http://julialang.org/license
+
 immutable IntSet <: AbstractSet{Int}
     bits::BitVector
     IntSet() = new(fill!(BitVector(256), false))
 end
 IntSet(itr) = union!(IntSet(), itr)
 
+eltype(::Type{IntSet}) = Int64
 similar(s::IntSet) = IntSet()
 copy(s1::IntSet) = copy!(IntSet(), s1)
 function copy!(to::IntSet, from::IntSet)
@@ -85,6 +88,9 @@ isempty(s::IntSet) = !any(s.bits)
 
 # Mathematical set functions: union!, intersect!, setdiff!, symdiff!
 
+union(s::IntSet) = copy(s)
+union(s1::IntSet, s2::IntSet) = union!(copy(s1), s2)
+union(s1::IntSet, ss::IntSet...) = union(s1, union(ss...))
 union(s::IntSet, ns) = union!(copy(s), ns)
 union!(s::IntSet, ns) = (for n in ns; push!(s, n); end; s)
 function union!(s1::IntSet, s2::IntSet)
@@ -93,7 +99,7 @@ function union!(s1::IntSet, s2::IntSet)
 end
 
 intersect(s1::IntSet) = copy(s1)
-intersect(s1::IntSet, ss...) = intersect(s1, intersect(ss...))
+intersect(s1::IntSet, ss::IntSet...) = intersect(s1, intersect(ss...))
 function intersect(s1::IntSet, ns)
     s = IntSet()
     for n in ns
@@ -218,9 +224,8 @@ function hash(s::IntSet, h::UInt)
         i -= 1
     end
     while i > 0
-        h ⊻= hashis_seed[i]
-        i -= 1
+        h = hash(bc[i], h)
+	i -= 1
     end
-    l = findprev(s.bits, length(s.bits))
-    hash(s.bits[1:l], h) ⊻ hashis_seed
+    h
 end
