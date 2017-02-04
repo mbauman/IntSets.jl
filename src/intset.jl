@@ -106,6 +106,12 @@ function intersect(s1::IntSet, ns)
 end
 intersect(s1::IntSet, s2::IntSet) =
     (length(s1.bits) >= length(s2.bits) ? intersect!(copy(s1), s2) : intersect!(copy(s2), s1))
+"""
+    intersect!(s1::IntSet, s2::IntSet)
+
+Intersects sets `s1` and `s2` and overwrites the set `s1` with the result. If needed, `s1`
+will be expanded to the size of `s2`.
+"""
 function intersect!(s1::IntSet, s2::IntSet)
     _matched_map!(&, s1.bits, s2.bits)
     s1
@@ -119,7 +125,17 @@ function setdiff!(s1::IntSet, s2::IntSet)
 end
 
 symdiff(s::IntSet, ns) = symdiff!(copy(s), ns)
+"""
+    symdiff!(s, itr)
+
+For each element in `itr`, destructively toggle its inclusion in set `s`.
+"""
 symdiff!(s::IntSet, ns) = (for n in ns; symdiff!(s, n); end; s)
+"""
+    symdiff!(s, n)
+
+The set `s` is destructively modified to toggle the inclusion of integer `n`.
+"""
 function symdiff!(s::IntSet, n::Integer)
     0 <= n < typemax(Int) || _throw_intset_bounds_err()
     val = !(n in s)
