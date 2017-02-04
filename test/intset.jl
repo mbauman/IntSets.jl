@@ -1,6 +1,7 @@
 # This file is a part of Julia. License is MIT: http://julialang.org/license
 
-# Test functionality of IntSet
+# Test functionality of IntSets
+using IntSets: IntSet
 
 @testset "Construction, collect" begin
     data_in = (1,5,100)
