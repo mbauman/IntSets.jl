@@ -28,8 +28,16 @@ s = IntSet([1,2,10,20,200,300,1000,10000,10002])
 # @test_throws ArgumentError first(IntSet())
 @test_throws ArgumentError last(IntSet())
 t = copy(s)
-sizehint!(t, 20000) #check that hash does not depend on size of internal Array{UInt32, 1}
+sizehint!(t, 20000) #check that hash does not depend on size of internal storage
 @test hash(s) == hash(t)
+push!(t, 20000)
+pop!(t, 20000)
+@test hash(s) == hash(t)
+# Ensure empty chunks don't affect hash
+@test hash(IntSet([1])) != hash(IntSet([17]))
+@test hash(IntSet([1])) != hash(IntSet([33]))
+@test hash(IntSet([1])) != hash(IntSet([65]))
+@test hash(IntSet([1])) != hash(IntSet([129]))
 
 # issue #8570
 s = IntSet(2^32)

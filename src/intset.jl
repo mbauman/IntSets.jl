@@ -1,4 +1,4 @@
-immutable IntSet
+immutable IntSet <: AbstractSet{Int}
     bits::BitVector
     IntSet() = new(fill!(BitVector(256), false))
 end
@@ -166,8 +166,7 @@ done(s::IntSet, i) = i <= 0
 
 @noinline _throw_intset_notempty_error() = throw(ArgumentError("collection must be non-empty"))
 function last(s::IntSet)
-    l = length(s.bits)
-    idx = findprev(s.bits, l)
+    idx = findprev(s.bits, length(s.bits))
     idx == 0 ? _throw_intset_notempty_error() : idx
 end
 
@@ -214,8 +213,17 @@ issubset(a::IntSet, b::IntSet) = isequal(a, intersect(a,b))
 
 const hashis_seed = UInt === UInt64 ? 0x88989f1fc7dea67d : 0xc7dea67d
 function hash(s::IntSet, h::UInt)
-    # Only hash the bits array up to the last-set bit to prevent extra empty
-    # bits from changing the hash result
+    h ⊻= hashis_seed
+    bc = s.bits.chunks
+    i = length(bc)
+    while i > 0 && bc[i] == UInt64(0)
+        # Skip trailing empty bytes to prevent extra space from changing the hash
+        i -= 1
+    end
+    while i > 0
+        h ⊻= hashis_seed[i]
+        i -= 1
+    end
     l = findprev(s.bits, length(s.bits))
     hash(s.bits[1:l], h) ⊻ hashis_seed
 end
