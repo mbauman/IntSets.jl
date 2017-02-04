@@ -4,7 +4,7 @@ using HDF5, JLD, DataFrames, Gadfly, Colors
 for (fname, param) in (("perf_density", :density),
                        ("perf_size", :size))
     !isdir(fname) && mkdir(fname)
-    df = load(fname*".jld", "df")
+    df = readtable(fname*".csv", header=false, names=[:time, param, :test, :module])
     bdf = by(df, [:test,:module,param]) do df
         t = df[:time]
         DataFrame(min=minimum(t), median=median(t), mean=mean(t), p95=quantile(t,.95), max=maximum(t))
@@ -20,8 +20,8 @@ for (fname, param) in (("perf_density", :density),
     rdf = by(bdf, [:test,param]) do df
         t = df[:min]
         mods = df[:module]
-        baset = t[mods .== :Base]
-        testt = t[mods .!= :Base]
+        baset = t[mods .== "Base"]
+        testt = t[mods .!= "Base"]
         DataFrame(min=testt./baset)
     end
     for d in groupby(rdf, :test)

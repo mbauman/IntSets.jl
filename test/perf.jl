@@ -1,8 +1,7 @@
 ## Performance tests
 import IntSets
-using DataFrames, HDF5, JLD
 
-const REPS = 10000
+const REPS = 100000
 
 function test_density{T}(::Type{T}, N)
     sz = 10000
@@ -193,15 +192,15 @@ test_size(IntSets.IntSet, 1)
 
 ##
 (time, param, fn) = test_density(Base.IntSet, REPS)
-base = DataFrame(Any[time, param, fn, fill!(Array{Symbol}(size(time)), :Base)], [:time, :density, :test, :module])
+base = Any[time param fn fill!(Array{Symbol}(size(time)), :Base)]
 (time, param, fn) = test_density(IntSets.IntSet, REPS)
-test = DataFrame(Any[time, param, fn, fill!(Array{Symbol}(size(time)), :IntSets)], [:time, :density, :test, :module])
-df = append!(base, test)
-save("perf_density.jld", "df", df)
+test = Any[time param fn fill!(Array{Symbol}(size(time)), :IntSets)]
+df = [base; test]
+writecsv("perf_density.csv", df)
 
 (time, param, fn) = test_size(Base.IntSet, REPS)
-base = DataFrame(Any[time, param, fn, fill!(Array{Symbol}(size(time)), :Base)], [:time, :size, :test, :module])
-(time, param, fn) = test_size(IntSets.IntSet, REPS÷10)
-test = DataFrame(Any[time, param, fn, fill!(Array{Symbol}(size(time)), :IntSets)], [:time, :size, :test, :module])
-df = append!(base, test)
-save("perf_size.jld", "df", df)
+base = Any[time param fn fill!(Array{Symbol}(size(time)), :Base)]
+(time, param, fn) = test_size(IntSets.IntSet, REPS)
+test = Any[time param fn fill!(Array{Symbol}(size(time)), :IntSets)]
+df = [base; test]
+writecsv("perf_size.csv", df)
