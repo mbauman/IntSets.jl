@@ -1,6 +1,6 @@
 ## Existing base tests
-import IntSets: IntSet
-
+# import IntSets: IntSet
+@testset begin
 @test setdiff(IntSet([1, 2, 3, 4]), IntSet([2, 4, 5, 6])) == IntSet([1, 3])
 @test symdiff(IntSet([1, 2, 3, 4]), IntSet([2, 4, 5, 6])) == IntSet([1, 3, 5, 6])
 
@@ -75,16 +75,12 @@ s = IntSet(1:2:10)
 @test_throws KeyError pop!(s, 1)
 @test_throws KeyError pop!(s, -1)
 @test pop!(s, -1, 1) === 1
-@test_throws ErrorException pop!(()->error(), s, -1)
 @test pop!(s, 1, 0) === 0
 @test s === delete!(s, 1)
 for i in s; pop!(s, i); end
 @test isempty(s)
-x = 0
-@test 1 == pop!(()->(global x; x+=1), s, 100) 
-@test x == 1
 push!(s, 100)
-@test pop!(()->error(), s, 100) == 100
+@test pop!(s, 100) == 100
 push!(s, 1:2:10...)
 @test pop!(s) == 9
 @test pop!(s) == 7
@@ -168,7 +164,6 @@ s = IntSet(b)
 @test_throws KeyError pop!(s, 0)
 @test pop!(s, 100, 0) == 0
 @test pop!(s, 99, 0) == 99
-@test pop!(()->1, s, 99) == 1
-@test pop!(()->1, s, 98) == 98
 
 show(IOBuffer(), IntSet())
+end

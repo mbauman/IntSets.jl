@@ -76,9 +76,6 @@ end
 @inline function pop!(s::IntSet, n::Integer, default)
     n in s ? (_delete!(s, n); n) : default
 end
-function pop!(f::Function, s::IntSet, n::Integer)
-    n in s ? (_delete!(s, n); n) : f()
-end
 @inline _delete!(s::IntSet, n::Integer) = _setint!(s, n, false)
 @inline delete!(s::IntSet, n::Integer) = n < 0 ? s : _delete!(s, n)
 shift!(s::IntSet) = pop!(s, first(s))
